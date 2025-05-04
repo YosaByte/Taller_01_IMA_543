@@ -1,6 +1,6 @@
 import os
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ['TF_USE_CUDNN_BATCHNORM'] = '0' #aumentacion de gatos :3
 
 from tensorflow.keras.layers import Dense, Conv2D, BatchNormalization
@@ -35,7 +35,7 @@ batch_size = 32 #usar múltplos de
 
 epochs = 201 #### Modificable
 
-data_augmentation = True
+data_augmentation = False
 
 # network parameters
 num_classes = 10
