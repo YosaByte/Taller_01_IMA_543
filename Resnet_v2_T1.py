@@ -35,7 +35,7 @@ num_classes = 7
 # Para centrar los valores de los pixel y mejorar accuracy
 subtract_pixel_mean = True
 
-version = 1
+version = 2
 
 n = 17
 
@@ -107,6 +107,7 @@ print(x_test.shape[0], 'test samples')
 y_train = to_categorical(y_train, num_classes)
 y_test = to_categorical(y_test, num_classes)
 
+#Hacemos flatten para que las dimensiones calcen
 y_train = np.array([row[0] for row in y_train])
 y_test = np.array([row[0] for row in y_test])
 
@@ -164,171 +165,6 @@ def resnet_layer(inputs,num_filters=16,kernel_size=3,strides=1,activation='relu'
             x = Activation(activation)(x)
         x = conv(x)
     return x
-
-def resnet_v1(input_shape, depth, num_classes=7):
-    """ResNet Version 1 Model builder [a]
-    Stacks of 2 x (3 x 3) Conv2D-BN-ReLU
-    Last ReLU is after the shortcut connection.
-    At the beginning of each stage, the feature map size is halved
-    (downsampled) by a convolutional layer with strides=2, while 
-    the number of filters is doubled. Within each stage, 
-    the layers have the same number filters and the
-    same number of filters.
-    Features maps sizes:
-    stage 0: 32x32, 16
-    stage 1: 16x16, 32
-    stage 2:  8x8,  64
-    The Number of parameters is approx the same as Table 6 of [a]:
-    ResNet20 0.27M
-    ResNet32 0.46M
-    ResNet44 0.66M
-    ResNet56 0.85M
-    ResNet110 1.7M
-    Arguments:
-        input_shape (tensor): shape of input image tensor
-        depth (int): number of core convolutional layers
-        num_classes (int): number of classes (CIFAR10 has 10)
-    Returns:
-        model (Model): Keras model instance
-    """
-    if (depth - 2) % 6 != 0:
-        raise ValueError('depth should be 6n+2 (eg 20, 32, in [a])')
-    
-    # start model definition.
-    num_filters = 16
-    num_res_blocks = int((depth - 2) / 6)
-
-    inputs = Input(shape=input_shape)
-    x = resnet_layer(inputs=inputs)
-    
-    # instantiate the stack of residual units
-    for stack in range(3):
-        for res_block in range(num_res_blocks):
-            strides = 1
-            # first layer but not first stack
-            if stack > 0 and res_block == 0:  
-                strides = 2  # downsample
-            y = resnet_layer(inputs=x,num_filters=num_filters,strides=strides)
-            y = resnet_layer(inputs=y,num_filters=num_filters,activation=None)
-            
-            # first layer but not first stack
-            if stack > 0 and res_block == 0:
-                # linear projection residual shortcut
-                # connection to match changed dims
-                x = resnet_layer(inputs=x,num_filters=num_filters,kernel_size=1,strides=strides,
-                                 activation=None,batch_normalization=False)
-            x = add([x, y])
-            x = Activation('relu')(x)
-        num_filters *= 2
-
-    # add classifier on top.
-    # v1 does not use BN after last shortcut connection-ReLU
-    x = AveragePooling2D(pool_size=8)(x)
-    y = Flatten()(x)
-    outputs = Dense(num_classes,activation='softmax')(y)
-
-    # instantiate model.
-    model = Model(inputs=inputs, outputs=outputs)
-    return model
-
-
-if version == 2:
-    model = resnet_v2(input_shape=input_shape, depth=depth)
-else:
-    model = resnet_v1(input_shape=input_shape, depth=depth)
-
-model.compile(loss='categorical_crossentropy',optimizer=Adam(lr=lr_schedule(0)),metrics=['acc'])
-model.summary()
-
-# prepare model model saving directory.
-save_dir = os.path.join(os.getcwd(), 'saved_models')
-model_name = 'taller1_resnet_v1_%s_model.{epoch:03d}.h5' % model_type
-if not os.path.isdir(save_dir):
-    os.makedirs(save_dir)
-filepath = os.path.join(save_dir, model_name)
-
-# prepare callbacks for model saving and for learning rate adjustment.
-checkpoint = ModelCheckpoint(filepath=filepath,monitor='val_acc',verbose=2,save_best_only=True)
-
-lr_scheduler = LearningRateScheduler(lr_schedule)
-lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1),cooldown=0,patience=5,min_lr=0.5e-6)
-
-callbacks = [checkpoint, lr_reducer, lr_scheduler]
-
-# run training, with or without data augmentation.
-if not data_augmentation:
-    print('Not using data augmentation.')
-    model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,
-              validation_data=(x_test,y_test),shuffle=True,callbacks=callbacks)
-else:
-    print('Using real-time data augmentation.')
-    # this will do preprocessing and realtime data augmentation:
-    datagen = ImageDataGenerator(
-        # set input mean to 0 over the dataset
-        featurewise_center=False,
-        # set each sample mean to 0
-        samplewise_center=False,
-        # divide inputs by std of dataset
-        featurewise_std_normalization=False,
-        # divide each input by its std
-        samplewise_std_normalization=False,
-        # apply ZCA whitening
-        zca_whitening=False,
-        # randomly rotate images in the range (deg 0 to 180)
-        rotation_range=0,
-        # randomly shift images horizontally
-        width_shift_range=0.1,
-        # randomly shift images vertically
-        height_shift_range=0.1,
-        # randomly flip images
-        horizontal_flip=True,
-        # randomly flip images
-        vertical_flip=False)
-
-    # compute quantities required for featurewise normalization
-    # (std, mean, and principal components if ZCA whitening is applied).
-    datagen.fit(x_train)
-
-    steps_per_epoch =  math.ceil(len(x_train) / batch_size)
-    
-    print('Chequeo de dimensiones')
-    print("x_train.shape:", x_train.shape)
-    print("y_train.shape:", y_train.shape)
-    print("y_train[0]:", y_train[0])
-
-
-    # fit the model on the batches generated by datagen.flow().
-    history = model.fit(x=datagen.flow(x_train, y_train, batch_size=batch_size),
-              verbose=2,epochs=epochs,validation_data=(x_test, y_test),
-              steps_per_epoch=steps_per_epoch,callbacks=callbacks)
-
-
-# score trained model
-scores = model.evaluate(x_test,y_test,batch_size=batch_size,verbose=0)
-print('Test loss:', scores[0])
-print('Test accuracy:', scores[1])
-
-plt.plot(history.history['acc']) 
-plt.plot(history.history['val_acc'])
-plt.suptitle('Exactitud del modelo')
-plt.title('Modelo Resnet v1')
-plt.ylabel('Exactitud')
-plt.xlabel('Épocas')
-plt.legend(['Entrenamiento', 'Test'], loc='best') 
-plt.savefig('accuracy_densenet.png')
-plt.close() 
-
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.suptitle('Función de Pérdidas')
-plt.title('Modelo Resnet v1')
-plt.ylabel('Valor pérdida')
-plt.xlabel('Épocas')
-plt.legend(['Entrenamiento', 'Test'], loc='best')
-plt.savefig('loss_densenet.png')
-plt.close()
-
-version = 2
 
 def resnet_v2(input_shape, depth, num_classes=7):
     """ResNet Version 2 Model builder [b]
