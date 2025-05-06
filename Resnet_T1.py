@@ -1,6 +1,6 @@
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+#os.environ["CUDA_VISIBLE_DEVICES"]="2"
 os.environ['TF_USE_CUDNN_BATCHNORM'] = '0'
 
 import tensorflow
@@ -91,11 +91,11 @@ print(x_test.shape)
 print(y_test.shape)
 
 # dimensiones de la imagen input
-input_shape = train_dataset.shape[1:]
+input_shape = x_train.shape[1:]
 
 # normalizar data.
-x_train = train_dataset.astype('float32') / 255
-x_test = test_dataset.astype('float32') / 255
+x_train = x_train.astype('float32') / 255
+x_test = x_test.astype('float32') / 255
 
 # Si se solicita sustraer la media de los pixels
 if subtract_pixel_mean:
