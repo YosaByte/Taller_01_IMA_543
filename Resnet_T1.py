@@ -489,6 +489,7 @@ scores = model.evaluate(x_test,y_test,batch_size=batch_size,verbose=0)
 print('Test loss:', scores[0])
 print('Test accuracy:', scores[1])
 
+
 plt.plot(history.history['acc']) 
 plt.plot(history.history['val_acc'])
 plt.suptitle('Exactitud del modelo')
