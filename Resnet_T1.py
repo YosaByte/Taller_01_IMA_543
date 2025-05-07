@@ -327,6 +327,8 @@ plt.xlabel('Épocas')
 plt.legend(['Entrenamiento', 'Test'], loc='best')
 plt.savefig('loss_densenet.png')
 plt.close()
+<<<<<<< HEAD
+=======
 
 version = 2
 
@@ -509,3 +511,4 @@ plt.xlabel('Épocas')
 plt.legend(['Entrenamiento', 'Test'], loc='best')
 plt.savefig('loss_densenet.png')
 plt.close()
+>>>>>>> e10b6a3607b0dd656674a20b78179f791da4793d
