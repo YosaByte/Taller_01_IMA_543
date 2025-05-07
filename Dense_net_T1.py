@@ -1,5 +1,4 @@
 import os
-import os
 os.environ["CUDA_VISIBLE_DEVICES"]="1"
 os.environ['TF_USE_CUDNN_BATCHNORM'] = '0' #aumentacion de gatos :3
 
@@ -35,11 +34,11 @@ batch_size = 32 #usar múltplos de
 
 epochs = 201 #### Modificable
 
-data_augmentation = False
+data_augmentation = True
 
 # network parameters
-num_classes = 10
-num_dense_blocks = 4
+# num_classes = 10
+num_dense_blocks = 4 #modificado final antes 4 al tratar de modificar no corre
 use_max_pool = False
 
 # DenseNet-BC with dataset augmentation
@@ -49,7 +48,7 @@ use_max_pool = False
 # 40            | 190   |  96.54%          | requires big mem GPU |
 
 growth_rate = 12 #cuanto mapas de caract. sumo 
-depth = 100 #Modificable
+depth = 100 #Modificable modificado final antes 100
 num_bottleneck_layers = (depth - 4) // (2 * num_dense_blocks) #no meter mano
 
 num_filters_bef_dense_block = 2 * growth_rate
@@ -89,7 +88,7 @@ def extraer_imagenes(directorio,tamanio): # Directorio con los datos
     # print(X_train.shape)
     
     # Normalizar
-    X_train = X_train / 255
+    X_train = X_train / 47
     # print(X_train.shape)
     y_train = to_categorical(clases)
     return X_train, y_train
@@ -98,14 +97,36 @@ def extraer_imagenes(directorio,tamanio): # Directorio con los datos
 path_1 = '/home/cursos/ima543_2025_1/ima543_share/Datasets/FER/train' 
 path_2 = '/home/cursos/ima543_2025_1/ima543_share/Datasets/FER/test' 
 
-x_train, y_train = extraer_imagenes(path_1,tamanio=(256,256,1))
-x_test, y_test = extraer_imagenes(path_2,tamanio=(256,256,1))
+x_train, y_train = extraer_imagenes(path_1,tamanio=(48,48,1))
+x_test, y_test = extraer_imagenes(path_2,tamanio=(48,48,1))
 
 input_shape = x_test.shape[1:]
+num_classes= y_test.shape[1]
 
-                                            ##########################
-                                            ###   CREATE MODEL     ###
-                                            ##########################
+# Obtener índices aleatorios (usando X_test.shape[0])
+indexes = np.random.randint(0, x_test.shape[0], size=25)
+
+# Extraer imágenes y etiquetas correctamente
+images = x_test[indexes]  # Imágenes reales
+labels = np.argmax(y_test[indexes], axis=1)  # Convertir one-hot a números (ej: [0, 1, 2])
+
+# Graficar
+plt.figure(figsize=(5,5))
+for i in range(len(indexes)):
+    plt.subplot(5, 5, i + 1)
+    plt.title(f'Clase: {labels[i]}')
+    plt.imshow(images[i], cmap='gray')  # Mostrar la imagen correcta
+    plt.axis('off')
+plt.tight_layout()
+plt.savefig('Holi_emotion.png')
+plt.close() 
+
+print(x_train.shape)
+print(x_test.shape)  
+
+#                                             ##########################
+#                                             ###   CREATE MODEL     ###
+#                                             ##########################
 
 
 # densenet CNNs (composite function) are made of BN-ReLU-Conv2D
@@ -156,6 +177,7 @@ outputs = Dense(num_classes,kernel_initializer='he_normal',activation='softmax')
 model = Model(inputs=inputs, outputs=outputs)
 model.compile(loss='categorical_crossentropy',optimizer=RMSprop(1e-3),metrics=['acc'])
 model.summary()
+print(len(model.layers))
 
 
                                             ##########################
@@ -189,7 +211,7 @@ filepath = os.path.join(save_dir, model_name)
 # prepare callbacks for model saving and for learning rate reducer
 checkpoint = ModelCheckpoint(filepath=filepath,monitor='val_acc',verbose=2,save_best_only=True)
 
-early_stopping = EarlyStopping(monitor= 'val_accuracy', patience= 3, verbose=1, restore_best_weights=True)
+early_stopping = EarlyStopping(monitor= 'val_acc', patience= 15, verbose=1, restore_best_weights=True)
 
 lr_scheduler = LearningRateScheduler(lr_schedule)
 
@@ -197,10 +219,12 @@ lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1),cooldown=0,patience=5,min_lr=
 
 callbacks = [checkpoint, early_stopping, lr_reducer, lr_scheduler]
 
+print("Hasta aquí bien")
 
-                                            ##########################
-                                            ###   TRAIN AND TEST   ###
-                                            ##########################
+
+#                                             ##########################
+#                                             ###   TRAIN AND TEST   ###
+#                                             ##########################
 
 
 import time 
@@ -210,8 +234,8 @@ start=time.time()
 # run training, with or without data augmentation
 if not data_augmentation:
     print('Not using data augmentation.')
-    model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,
-              validation_data=(x_test, y_test),shuffle=True,callbacks=callbacks)
+    history = model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,
+                        validation_data=(x_test, y_test),shuffle=True,callbacks=callbacks)
 else:
     print('Using real-time data augmentation.')
     # preprocessing  and realtime data augmentation
@@ -221,7 +245,7 @@ else:
         featurewise_std_normalization=False,  # divide inputs by std of dataset
         samplewise_std_normalization=False,  # divide each input by its std
         zca_whitening=False,  # apply ZCA whitening
-        rotation_range=30,  # randomly rotate images in the range (deg 0 to 180)
+        rotation_range=45,  # randomly rotate images in the range (deg 0 to 180)
         width_shift_range=0.1,  # randomly shift images horizontally
         height_shift_range=0.1,  # randomly shift images vertically
         horizontal_flip=True,  # randomly flip images
@@ -233,8 +257,8 @@ else:
 
     steps_per_epoch = math.ceil(len(x_train) / batch_size)
     # fit the model on the batches generated by datagen.flow().
-    model.fit(x=datagen.flow(x_train, y_train, batch_size=batch_size),verbose=2,epochs=epochs,
-              validation_data=(x_test, y_test),steps_per_epoch=steps_per_epoch,callbacks=callbacks)
+    history = model.fit(x=datagen.flow(x_train, y_train, batch_size=batch_size),verbose=2,epochs=epochs,
+                        validation_data=(x_test, y_test),steps_per_epoch=steps_per_epoch,callbacks=callbacks)
 
 fin=time.time()
 print('(RUNNING TIME: ' + str(fin-start) )
@@ -242,3 +266,24 @@ print('(RUNNING TIME: ' + str(fin-start) )
 scores = model.evaluate(x_test, y_test, verbose=0)
 print('Test loss:', scores[0])
 print('Test accuracy:', scores[1])
+
+plt.plot(history.history['acc']) 
+plt.plot(history.history['val_acc'])
+plt.suptitle('Exactitud del modelo')
+plt.title('Modelo DENSENET')
+plt.ylabel('Exactitud')
+plt.xlabel('Épocas')
+plt.legend(['Entrenamiento', 'Test'], loc='best') 
+plt.savefig('accuracy_densenet.png')
+plt.close() 
+
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.suptitle('Función de Pérdidas')
+plt.title('Modelo DENSENET')
+plt.ylabel('Valor pérdida')
+plt.xlabel('Épocas')
+plt.legend(['Entrenamiento', 'Test'], loc='best')
+plt.savefig('loss_densenet.png')
+plt.close() 
+
